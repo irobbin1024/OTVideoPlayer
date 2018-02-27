@@ -1,32 +1,30 @@
-//  INVideoPlayerControlView.m
-//  INVideoDemo
 //
-//  Created by baiyang on 2017/3/20.
-//  Copyright © 2017年 Hangzhou Jiuyan Technology Co., Ltd. All rights reserved.
+//  DemoVidePlayerControlView.m
+//  OTVideoPlayerDemo
+//
+//  Created by irobbin on 2018/2/27.
+//  Copyright © 2018年 irobbin.com. All rights reserved.
 //
 
-#import "INVideoPlayerControlView.h"
+#import "DemoVidePlayerControlView.h"
 #import "UIView+Extension.h"
 #import "UIColor+INColor.h"
 
 #define kHalfWidth self.frame.size.width * 0.5
 #define kHalfHeight self.frame.size.height * 0.5
 
-@interface INVideoPlayerControlView ()
+@interface DemoVidePlayerControlView()
 
 @property (nonatomic, strong) UIView * bottomView;
 @property (nonatomic, strong) UIActivityIndicatorView *loadingView;
 @property (nonatomic, strong) UIButton * playButton;
-@property (nonatomic, strong) UIButton * closeButton;
 @property (nonatomic, strong) UISlider * mpVolumeSlider;
 @property (nonatomic, strong) UILabel * leftTimeLabel;
 @property (nonatomic, strong) UILabel * rightTimeLabel;
 @property (nonatomic, strong) UISlider * progressSlider;
-@property (nonatomic, strong) UIButton * guideButton;
 @property (nonatomic, strong) UIProgressView * volumeProgress;
 @property (nonatomic, strong) UIProgressView * loadingProgress;
 @property (nonatomic, strong) UITapGestureRecognizer * singleTapGesture;
-@property (nonatomic, strong) UITapGestureRecognizer * doubleTapGesture;
 
 @property (nonatomic, assign) BOOL lastStateWhenBackground;
 @property (nonatomic, assign) BOOL isPlayDone;
@@ -35,50 +33,17 @@
 @property (nonatomic, assign) BOOL isDragingSlider;
 @property (nonatomic, assign) BOOL playDoneDidCallback;
 
-@property (nonatomic, copy) NSString * guideTitle;
-
-
-// 统计时长
-
-/*
-startTime			时间记录的起点
-playTimeDuration	时间总长度
-
-done 	开始播放		设置起点
-done	播放完成		添加时长
-done	停止播放		发送埋点 + 重置时长 + 重置起点
-
-done	暂停播放 		添加时长
-done	开始播放 		重设起点
-
-done 	退到后台		如果正在播放，那么 发送埋点 + 添加时长，否则 发送埋点
-done	回到前台		重设起点
-
-done	放开进度		添加时长 + 重设起点
-*/
 @property (nonatomic, strong) NSDate * startTime;
 @property (nonatomic, assign) NSTimeInterval playTimeDuration;
 
-
-
 @end
 
-@implementation INVideoPlayerControlView
+@implementation DemoVidePlayerControlView
 
 @synthesize playerView;
 
-#pragma mark - Init
-
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
-    if (self) {
-        [self initSubViews];
-    }
-    return self;
-}
-
-- (instancetype)init {
-    self = [super init];
     if (self) {
         [self initSubViews];
     }
@@ -99,8 +64,8 @@ done	放开进度		添加时长 + 重设起点
     // 播放
     [self addSubview:({
         self.playButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        [self.playButton setImage:INVideoImageWithName(@"video_play_big") forState:UIControlStateNormal];
-        [self.playButton setImage:INVideoImageWithName(@"video_pause_big") forState:UIControlStateSelected];
+        [self.playButton setImage:DemoVideoImageWithName(@"video_play_big") forState:UIControlStateNormal];
+        [self.playButton setImage:DemoVideoImageWithName(@"video_pause_big") forState:UIControlStateSelected];
         [self.playButton addTarget:self action:@selector(playButtonAction:) forControlEvents:UIControlEventTouchUpInside];
         [self.playButton sizeToFit];
         self.playButton.center = CGPointMake(self.width * 0.5, self.height * 0.5);
@@ -108,21 +73,6 @@ done	放开进度		添加时长 + 重设起点
         self.playButton.alpha = 0.0;
         
         self.playButton;
-    })];
-    
-    // 关闭
-    [self addSubview:({
-        self.closeButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        [self.closeButton setImage:INVideoImageWithName(@"video_close") forState:UIControlStateNormal];
-        [self.closeButton addTarget:self action:@selector(closeButtonAction:) forControlEvents:UIControlEventTouchUpInside];
-        [self.closeButton sizeToFit];
-        self.closeButton.left = 20;
-        self.closeButton.top = 20;
-        self.closeButton.alpha = 0.0;
-        
-        self.closeButton.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
-        
-        self.closeButton;
     })];
     
     // 底部栏
@@ -160,7 +110,7 @@ done	放开进度		添加时长 + 重设起点
         self.progressSlider.maximumValue = 1.0;
         self.progressSlider.minimumTrackTintColor = [UIColor hex:0xff4545 alpha:1.0];
         self.progressSlider.maximumTrackTintColor = [UIColor clearColor];
-        [self.progressSlider setThumbImage:INVideoImageWithName(@"video_progress_dot")  forState:UIControlStateNormal];
+        [self.progressSlider setThumbImage:DemoVideoImageWithName(@"video_progress_dot")  forState:UIControlStateNormal];
         
         [self.progressSlider sizeToFit];
         self.progressSlider.width = self.bottomView.width - 120;
@@ -224,25 +174,7 @@ done	放开进度		添加时长 + 重设起点
         self.volumeProgress;
     })];
     
-    [self addSubview:({
-        UIButton * guideButton = [UIButton new];
-        guideButton.backgroundColor = [UIColor hex:0x000000 alpha:0.15];
-        guideButton.layer.borderColor = [UIColor hex:0xffffff alpha:0.5].CGColor;
-        guideButton.layer.borderWidth = 0.5;
-        guideButton.layer.cornerRadius = 32/2.0;
-        guideButton.layer.masksToBounds = YES;
-        guideButton.hidden = YES;
-        //    [guideButton setTitle:title forState:UIControlStateNormal];
-//        guideButton.titleLabel.font = [UIFont localization65FontOfSize:14.0];
-        [guideButton addTarget:self action:@selector(guideButtonAction:) forControlEvents:UIControlEventTouchUpInside];
-        guideButton.alpha = 0.0;
-        
-        [self addSubview:guideButton];
-        self.guideButton = guideButton;
-        
-        self.guideButton;
-    })];
-    
+    [self controlToShow];
 }
 
 - (void)layoutSubviews {
@@ -259,32 +191,9 @@ done	放开进度		添加时长 + 重设起点
 
 
 #pragma mark - Action
-- (void)setDelegate:(id<INVideoPlayerControlViewDelegate>)delegate {
-    _delegate = delegate;
-    if (_delegate == nil) {
-        NSLog(@"delegate nil");
-    } else {
-        NSLog(@"delegate has value");
-    }
-}
 
 - (void)singleTapGestureAction:(UITapGestureRecognizer *)sender {
-    //    CGPoint location = [sender locationInView:self];
-    //    // 时间栏上面部分
-    //    if (location.y <= self.height - 40 || self.isSmallMode) {
-    //
-    //        if (self.isSmallMode == NO || self.canClickPauseOnSmall) {
-    //            [self playButtonAction:nil];
-    //        }
-    //
-    //        if (self.delegate && [self.delegate respondsToSelector:@selector(singleTapGestureForControlView:)]) {
-    //            [self.delegate singleTapGestureForControlView:self];
-    //        }
-    //
-    //    } else {
-    //        [self controlToShow];
-    //        [self performSelector:@selector(controlToHide) withObject:nil afterDelay:2];
-    //    }
+    
     
     // 控件显示 且 当前为播放状态
     if (self.playButton.alpha >= 0.99 && [self.playerView isPlaying]) {
@@ -293,39 +202,20 @@ done	放开进度		添加时长 + 重设起点
         [self controlToShow];
         [self performSelector:@selector(controlToHide) withObject:nil afterDelay:2];
     }
-    
-    
-    if (self.delegate && [self.delegate respondsToSelector:@selector(singleTapGestureForControlView:)]) {
-        [self.delegate singleTapGestureForControlView:self];
-    }
-}
-
-- (void)doubleTapGestureAction:(UITapGestureRecognizer *)sender {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(doubleTapGestureForControlView:)]) {
-        [self.delegate doubleTapGestureForControlView:self];
-    }
 }
 
 - (void)playButtonAction:(UIButton *)sender {
     if (sender.selected) {
         [self controlToPause];
-        
-        if (self.delegate && [self.delegate respondsToSelector:@selector(pauseButtonActionForControlView:)]) {
-            [self.delegate pauseButtonActionForControlView:self];
-        }
     } else {
         [self controlToPlay];
-        
-        if (self.delegate && [self.delegate respondsToSelector:@selector(playButtonActionForControlView:)]) {
-            [self.delegate playButtonActionForControlView:self];
-        }
     }
     
     sender.selected = !sender.selected;
 }
 
 - (void)controlToPlay {
-
+    
     [self resetStartTime];
     
     if (self.isPlayDone) {
@@ -335,23 +225,14 @@ done	放开进度		添加时长 + 重设起点
     
     [self.playerView play];
     
-    if (self.isSmallMode) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            self.playButton.alpha = 0.0;
-            self.guideButton.alpha = 0.0;
-        });
-    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        self.playButton.alpha = 0.0;
+    });
 }
 - (void)controlToPause {
     [self.playerView pause];
     
     [self addDate];
-}
-
-- (void)closeButtonAction:(id)sender {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(closeButtonActionForControlView:)]) {
-        [self.delegate closeButtonActionForControlView:self];
-    }
 }
 
 - (void)dragProgressSlideAction:(id)sender {
@@ -360,7 +241,7 @@ done	放开进度		添加时长 + 重设起点
 }
 
 - (void)releaseProgressSlideAction:(id)sender {
-
+    
     [self addDate];
     [self resetStartTime];
     
@@ -374,20 +255,11 @@ done	放开进度		添加时长 + 重设起点
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(controlToHide) object:nil];
     [self performSelector:@selector(controlToHide) withObject:nil afterDelay:2.0];
     
-    if (self.delegate && [self.delegate respondsToSelector:@selector(progressDidDragActionForControlView:)]) {
-        [self.delegate progressDidDragActionForControlView:self];
-    }
-}
-
-- (void)guideButtonAction:(id)sender {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(didClickGuide:url:)]) {
-        [self.delegate didClickGuide:self url:self.guideURL];
-    }
 }
 
 #pragma mark - INVideoPlayerDelegate
 
-- (void)setupWithURL:(NSURL *)url {
+- (void)videoPlayerDidSetupWithURL:(NSURL *)url {
     self.playerView.callbackInterval = CMTimeMake(1, 100);
     [self resetSelf];
 }
@@ -404,12 +276,10 @@ done	放开进度		添加时长 + 重设起点
         case OTVideoLoadStateStalled:
         case OTVideoLoadStateUnknown:
             [self.loadingView startAnimating];
-            [self callLoadingViewNeedLoading:YES];
             break;
         case OTVideoLoadStatePlaythroughOK:
         case OTVideoLoadStatePlayable:
             [self.loadingView stopAnimating];
-            [self callLoadingViewNeedLoading:NO];
             break;
             
         default:
@@ -417,6 +287,8 @@ done	放开进度		添加时长 + 重设起点
     }
     
     [self.loadingProgress setProgress:videoPlayer.playableDuration / videoPlayer.duration];
+    
+    NSLog(@"loadingProgress %lf", self.loadingProgress.progress);
     
 }
 - (void)videoPlayer:(OTVideoPlayerView *)videoPlayer errorOccur:(NSError *)error {
@@ -427,23 +299,18 @@ done	放开进度		添加时长 + 重设起点
     self.isPlayDone = YES;
     
     [self.playButton setSelected:NO];
-    [self callPlayButtonStatusChange:YES];
     [self addDate];
     self.startTime = nil;
     videoPlayer.currentPlaybackTime = 0.f;
     
 }
 - (void)playCallbackForVideoPlayer:(OTVideoPlayerView *)videoPlayer {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+    NSString * leftTimeLabelText = [self convertTime:[self.playerView currentPlaybackTime]];
+    dispatch_async(dispatch_get_main_queue(), ^{
         if (self.isDragingSlider == NO) {
-            [self.progressSlider setValue:[self.playerView playableDuration] / 1.0 / self.playerView.duration animated:YES];
+            [self.progressSlider setValue:[self.playerView currentPlaybackTime] / self.playerView.duration animated:YES];
         }
-        NSString * leftTimeLabelText = [self convertTime:[self.playerView duration]];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.leftTimeLabel.text = leftTimeLabelText;
-            [self callCurrentTimeDidChange:[self.playerView playableDuration]];
-        });
-        
+        self.leftTimeLabel.text = leftTimeLabelText;
     });
 }
 
@@ -479,55 +346,6 @@ done	放开进度		添加时长 + 重设起点
 
 #pragma mark - Setter & Getter
 
-//- (void)setIsSmallMode:(BOOL)isSmallMode {
-//    _isSmallMode = isSmallMode;
-//
-//    if ([self isForceShowVideoTimeView] == NO) {
-//        self.bottomView.alpha = _isSmallMode ? 0.0 : 1.0;
-//    } else {
-//        self.bottomView.alpha = 1.0;
-//    }
-//    if (_isSmallMode && self.playerView.playStatus & JYVideoPlayStatusUserPlay) {
-//        self.playButton.alpha = 0.0;
-//        self.guideButton.alpha = 0.0;
-//    } else {
-//        self.guideButton.alpha = 1.0;
-//    }
-//
-//    self.closeButton.alpha = _isSmallMode ? 0.0 : 1.0;
-//
-//    NSLog(@"set small mode %@", _isSmallMode ? @"YES" : @"NO");
-//
-//    [self.playerView invalidVolumeSetup];
-//}
-
-- (BOOL)isForceShowVideoTimeView {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(forceShowVideoTimeForControlView:)]) {
-        return [self.delegate forceShowVideoTimeForControlView:self];
-    }
-    return NO;
-}
-
-- (void)setThirdpartDelegate:(id<INVideoPlayerControlViewThirdpardDelegate>)thirdpartDelegate {
-    _thirdpartDelegate = thirdpartDelegate;
-    
-    [self callDidGetTotalVideoLength:self.playerView.duration];
-    [self callPlayButtonStatusChange:self.playButton.selected];
-}
-
-- (NSString *)videoID {
-    if (_videoID == nil) {
-        return @"";
-    }
-    return _videoID;
-}
-
-- (NSString *)videoFrom {
-    if (_videoFrom == nil) {
-        return @"";
-    }
-    return _videoFrom;
-}
 
 #pragma mark - Funs
 
@@ -548,48 +366,6 @@ done	放开进度		添加时长 + 重设起点
     
 }
 
-- (void)setGuideButtonShow:(BOOL)show {
-    if (self.guideTitle.length > 0 && self.guideURL) {
-        self.guideButton.hidden = !show;
-    } else {
-        self.guideButton.hidden = YES;
-    }
-    
-}
-
-- (void)setupGuideWithTitle:(NSString *)title url:(NSURL *)url {
-    self.guideTitle = title;
-    self.guideURL = url;
-    
-    if (title == nil) {
-        self.guideButton.hidden = YES;
-        return ;
-    } else {
-        if (self.isSmallMode == NO) {
-            self.guideButton.hidden = NO;
-        }
-    }
-    
-    [self.guideButton setTitle:[NSString stringWithFormat:@"    %@    ", title] forState:UIControlStateNormal];
-    [self.guideButton sizeToFit];
-    
-    self.guideButton.height = 32;
-    self.guideButton.bottom = self.height - 90;
-    self.guideButton.centerX = self.width * 0.5;
-    self.guideButton.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
-}
-
-//- (void)show4GTipIfNeed {
-//    static BOOL isNeedShowVideoNotWifiGuide = YES;
-//    if ([self.playerView.videoURL.absoluteString hasPrefix:@"http"]) {
-//        NetworkStatus netStatus = [[Reachability reachabilityForInternetConnection] currentReachabilityStatus];
-//        if (netStatus != NotReachable && netStatus != ReachableViaWiFi && isNeedShowVideoNotWifiGuide) {
-//            [self makeToast:@"当前为移动网络，注意流量哦~" duration:2. position:@"center"];
-//            isNeedShowVideoNotWifiGuide = NO;
-//        }
-//    }
-//}
-
 - (void)letVolumeProgressDismiss {
     [UIView animateWithDuration:0.2 animations:^{
         self.volumeProgress.alpha = 0.0;
@@ -601,19 +377,8 @@ done	放开进度		添加时长 + 重设起点
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(controlToHide) object:nil];
     
     [UIView animateWithDuration:0.15 animations:^{
-        if (self.isSmallMode == NO) {
-            // 只有全屏才会显示控件
-            self.closeButton.alpha = 1.0;
-            self.bottomView.alpha = 1.0;
-            self.playButton.alpha = 1.0;
-            self.guideButton.alpha = 1.0;
-        }
-        
-        if ([self isForceShowVideoTimeView]) {
-            self.bottomView.alpha = 1.0;
-            self.playButton.alpha = 1.0;
-            self.guideButton.alpha = 1.0;
-        }
+        self.bottomView.alpha = 1.0;
+        self.playButton.alpha = 1.0;
     }];
 }
 
@@ -622,46 +387,21 @@ done	放开进度		添加时长 + 重设起点
 }
 
 - (void)controlToHide:(void(^)(void))complete {
-
+    
     
     [UIView animateWithDuration:0.3 animations:^{
         
         if ([self.playerView isPlaying]) {
             self.playButton.alpha = 0.0;
-            self.guideButton.alpha = 0.0;
         }
         
-        if ([self isForceShowVideoTimeView]) {
-            self.bottomView.alpha = 1.0;
-        } else {
-            self.bottomView.alpha = 0.0;
-        }
+        self.bottomView.alpha = 0.0;
         
     } completion:^(BOOL finished) {
         if (complete) {
             complete();
         }
     }];
-}
-
-- (void)removeDoubleTap {
-    [self removeGestureRecognizer:self.doubleTapGesture];
-}
-
-- (void)addDoubleTap {
-    // 添加手势
-    [self addGestureRecognizer:({
-        if (self.doubleTapGesture == nil) {
-            self.doubleTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(doubleTapGestureAction:)];
-        }
-        self.doubleTapGesture.delaysTouchesBegan = YES;
-        self.doubleTapGesture.numberOfTapsRequired = 2;
-        self.doubleTapGesture.numberOfTouchesRequired = 1;
-        
-        [self.singleTapGesture requireGestureRecognizerToFail:self.doubleTapGesture];
-        
-        self.doubleTapGesture;
-    })];
 }
 
 - (NSString *)convertTime:(CGFloat)second{
@@ -679,12 +419,8 @@ done	放开进度		添加时长 + 重设起点
 - (void)resetSelf {
     [self addDate];
     [self sendVideoDurationEvent];
-    [self setupGuideWithTitle:nil url:nil];
     self.leftTimeLabel.text = @"--:--";
     self.rightTimeLabel.text = @"--:--";
-    self.canClickPauseOnSmall = NO;
-    self.isSmallMode = YES;
-    self.delegate = nil;
     [self.progressSlider setValue:0.0 animated:YES];
     [self.loadingProgress setProgress:0.0];
 }
@@ -692,48 +428,8 @@ done	放开进度		添加时长 + 重设起点
 - (void)sendVideoDurationEvent {
     if (self.playTimeDuration > 0.0) {
         NSLog(@"send date duration = %f, start time = %@ \n", self.playTimeDuration, self.startTime);
-
         self.playTimeDuration = 0;
         self.startTime = nil;
-        
-    }
-}
-
-#pragma mark - Thridpart
-
-- (void)callLoadingViewNeedLoading:(BOOL)needLoading {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(loadingViewNeedLoading:)]) {
-        [self.thirdpartDelegate loadingViewNeedLoading:needLoading];
-    }
-}
-
-- (void)callPlayButtonStatusChange:(BOOL)status {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(playButtonStatusChange:)]) {
-        [self.thirdpartDelegate playButtonStatusChange:status];
-    }
-}
-
-- (void)callLoadingProgressDidChange:(CGFloat)loadingProgress {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(loadingProgressDidChange:)]) {
-        [self.thirdpartDelegate loadingProgressDidChange:loadingProgress];
-    }
-}
-
-- (void)callPlayProgressDidChange:(CGFloat)second {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(playProgressDidChange:)]) {
-        [self.thirdpartDelegate playProgressDidChange:second];
-    }
-}
-
-- (void)callDidGetTotalVideoLength:(CGFloat)second {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(didGetTotalVideoLength:)]) {
-        [self.thirdpartDelegate didGetTotalVideoLength:second];
-    }
-}
-
-- (void)callCurrentTimeDidChange:(CGFloat)second {
-    if (self.thirdpartDelegate && [self.thirdpartDelegate respondsToSelector:@selector(currentTimeDidChange:)]) {
-        [self.thirdpartDelegate currentTimeDidChange:second];
     }
 }
 

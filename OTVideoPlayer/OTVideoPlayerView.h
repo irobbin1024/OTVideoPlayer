@@ -38,7 +38,7 @@ typedef NS_ENUM(NSInteger, OTVideoScalingMode) {
 
 @optional
 
-- (void)setupWithURL:(NSURL *)url;
+- (void)videoPlayerDidSetupWithURL:(NSURL *)url;
 @property (nonatomic, weak) OTVideoPlayerView * playerView;
 
 

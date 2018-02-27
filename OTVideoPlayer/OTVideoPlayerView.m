@@ -45,6 +45,13 @@ inline static bool isFloatZero(float value)
     [self removeKVOForPlayerItem:_playerItem];
 }
 
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor blackColor];
+    }
+    return self;
+}
 
 
 - (void)setupWithURL:(NSURL *)videoURL {
@@ -88,8 +95,8 @@ inline static bool isFloatZero(float value)
     playerLayer.videoGravity = [self playerLayerGravityWithScalingMode:self.scalingMode];
     playerLayer.player = self.player;
     
-    if (self.controlView && [self.controlView respondsToSelector:@selector(setupWithURL:)]) {
-        [self.controlView setupWithURL:self.videoURL];
+    if (self.controlView && [self.controlView respondsToSelector:@selector(videoPlayerDidSetupWithURL:)]) {
+        [self.controlView videoPlayerDidSetupWithURL:self.videoURL];
     }
 }
 
@@ -140,7 +147,15 @@ inline static bool isFloatZero(float value)
 }
 
 - (BOOL)isPlaying {
-    return NO;
+    if (!isFloatZero(_player.rate)) {
+        return YES;
+    } else {
+        if (_isPrerolling) {
+            return YES;
+        } else {
+            return NO;
+        }
+    }
 }
 
 - (UIImage *)thumbnailImageAtCurrentTime {
@@ -228,11 +243,11 @@ inline static bool isFloatZero(float value)
                     self.playableDuration = playableDuration;
                 }
             }
-        }
-        else
-        {
+        } else {
             self.playableDuration = 0;
         }
+        
+        [self callLoadStateChange];
     } else if ([keyPath isEqualToString:@"playbackBufferEmpty"]) {
         if (self.playerItem.isPlaybackBufferEmpty) {
             self.isPrerolling = YES;
@@ -262,11 +277,15 @@ inline static bool isFloatZero(float value)
 }
 
 - (void)callLoadStateChange {
-    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(loadStateDidChangeForVideoPlayer:)]) {
+        [self.delegate loadStateDidChangeForVideoPlayer:self];
+    }
 }
 
 - (void)callPlaybackStateChange {
-    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(playbackStateDidChangeForVideoPlayer:)]) {
+        [self.delegate playbackStateDidChangeForVideoPlayer:self];
+    }
 }
 
 #pragma mark - Private Funs
@@ -327,7 +346,7 @@ inline static bool isFloatZero(float value)
             return AVLayerVideoGravityResize;
             break;
         case OTVideoScalingModeNone:
-            return AVLayerVideoGravityResizeAspectFill;
+            return AVLayerVideoGravityResizeAspect;
             break;
         case OTVideoScalingModeAspectFit:
             return AVLayerVideoGravityResizeAspect;
