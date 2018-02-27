@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D12BCF9C20454D9400761643 /* INVideoPlayerControlView.m in Sources */ = {isa = PBXBuildFile; fileRef = D12BCF9A20454D9300761643 /* INVideoPlayerControlView.m */; };
+		D12BCF9E20454F3E00761643 /* OTPlayer.bundle in Resources */ = {isa = PBXBuildFile; fileRef = D12BCF9D20454F3E00761643 /* OTPlayer.bundle */; };
+		D12BCFA12045566200761643 /* UIView+Extension.m in Sources */ = {isa = PBXBuildFile; fileRef = D12BCFA02045566200761643 /* UIView+Extension.m */; };
+		D12BCFA42045584700761643 /* UIColor+INColor.m in Sources */ = {isa = PBXBuildFile; fileRef = D12BCFA32045584700761643 /* UIColor+INColor.m */; };
 		D195977920440F06004E19AA /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = D195977820440F06004E19AA /* AppDelegate.m */; };
 		D195977C20440F06004E19AA /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D195977B20440F06004E19AA /* ViewController.m */; };
 		D195977F20440F06004E19AA /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D195977D20440F06004E19AA /* Main.storyboard */; };
@@ -14,9 +18,17 @@
 		D195978420440F06004E19AA /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D195978220440F06004E19AA /* LaunchScreen.storyboard */; };
 		D195978720440F06004E19AA /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = D195978620440F06004E19AA /* main.m */; };
 		D195979420440F93004E19AA /* OTVideoPlayerView.m in Sources */ = {isa = PBXBuildFile; fileRef = D195979320440F93004E19AA /* OTVideoPlayerView.m */; };
+		D1959798204531C6004E19AA /* DemoVideoPlayerView.m in Sources */ = {isa = PBXBuildFile; fileRef = D1959797204531C6004E19AA /* DemoVideoPlayerView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D12BCF9A20454D9300761643 /* INVideoPlayerControlView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = INVideoPlayerControlView.m; sourceTree = "<group>"; };
+		D12BCF9B20454D9300761643 /* INVideoPlayerControlView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = INVideoPlayerControlView.h; sourceTree = "<group>"; };
+		D12BCF9D20454F3E00761643 /* OTPlayer.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = OTPlayer.bundle; sourceTree = "<group>"; };
+		D12BCF9F2045566200761643 /* UIView+Extension.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "UIView+Extension.h"; sourceTree = "<group>"; };
+		D12BCFA02045566200761643 /* UIView+Extension.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "UIView+Extension.m"; sourceTree = "<group>"; };
+		D12BCFA22045584600761643 /* UIColor+INColor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "UIColor+INColor.h"; sourceTree = "<group>"; };
+		D12BCFA32045584700761643 /* UIColor+INColor.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "UIColor+INColor.m"; sourceTree = "<group>"; };
 		D195977420440F06004E19AA /* OTVideoPlayerDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OTVideoPlayerDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D195977720440F06004E19AA /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		D195977820440F06004E19AA /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -29,6 +41,8 @@
 		D195978620440F06004E19AA /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		D195979220440F93004E19AA /* OTVideoPlayerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OTVideoPlayerView.h; sourceTree = "<group>"; };
 		D195979320440F93004E19AA /* OTVideoPlayerView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OTVideoPlayerView.m; sourceTree = "<group>"; };
+		D1959796204531C6004E19AA /* DemoVideoPlayerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DemoVideoPlayerView.h; sourceTree = "<group>"; };
+		D1959797204531C6004E19AA /* DemoVideoPlayerView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DemoVideoPlayerView.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +78,15 @@
 				D195979120440F7B004E19AA /* OTVideoPlayer */,
 				D195977720440F06004E19AA /* AppDelegate.h */,
 				D195977820440F06004E19AA /* AppDelegate.m */,
+				D12BCF9B20454D9300761643 /* INVideoPlayerControlView.h */,
+				D12BCF9A20454D9300761643 /* INVideoPlayerControlView.m */,
+				D12BCF9F2045566200761643 /* UIView+Extension.h */,
+				D12BCFA02045566200761643 /* UIView+Extension.m */,
+				D12BCFA22045584600761643 /* UIColor+INColor.h */,
+				D12BCFA32045584700761643 /* UIColor+INColor.m */,
+				D12BCF9D20454F3E00761643 /* OTPlayer.bundle */,
+				D1959796204531C6004E19AA /* DemoVideoPlayerView.h */,
+				D1959797204531C6004E19AA /* DemoVideoPlayerView.m */,
 				D195977A20440F06004E19AA /* ViewController.h */,
 				D195977B20440F06004E19AA /* ViewController.m */,
 				D195977D20440F06004E19AA /* Main.storyboard */,
@@ -146,6 +169,7 @@
 				D195978420440F06004E19AA /* LaunchScreen.storyboard in Resources */,
 				D195978120440F06004E19AA /* Assets.xcassets in Resources */,
 				D195977F20440F06004E19AA /* Main.storyboard in Resources */,
+				D12BCF9E20454F3E00761643 /* OTPlayer.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -156,8 +180,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D12BCF9C20454D9400761643 /* INVideoPlayerControlView.m in Sources */,
 				D195979420440F93004E19AA /* OTVideoPlayerView.m in Sources */,
+				D12BCFA42045584700761643 /* UIColor+INColor.m in Sources */,
 				D195977C20440F06004E19AA /* ViewController.m in Sources */,
+				D12BCFA12045566200761643 /* UIView+Extension.m in Sources */,
+				D1959798204531C6004E19AA /* DemoVideoPlayerView.m in Sources */,
 				D195978720440F06004E19AA /* main.m in Sources */,
 				D195977920440F06004E19AA /* AppDelegate.m in Sources */,
 			);
