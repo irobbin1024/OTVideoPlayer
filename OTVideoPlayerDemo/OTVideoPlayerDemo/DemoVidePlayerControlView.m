@@ -211,7 +211,7 @@
         [self controlToPlay];
     }
     
-    sender.selected = !sender.selected;
+//    sender.selected = !sender.selected;
 }
 
 - (void)controlToPlay {
@@ -269,7 +269,27 @@
     self.rightTimeLabel.text = [self convertTime:[self.playerView duration]];
 }
 - (void)playbackStateDidChangeForVideoPlayer:(OTVideoPlayerView *)videoPlayer {
-    
+    switch (videoPlayer.playbackState) {
+        case OTVideoPlaybackStatePaused:
+            self.playButton.selected = NO;
+//            [self controlToShow];
+            break;
+        case OTVideoPlaybackStatePlaying:
+            self.playButton.selected = YES;
+            [self controlToHide];
+            break;
+        case OTVideoPlaybackStateSeeking:
+
+            break;
+        case OTVideoPlaybackStateStopped:
+            self.playButton.selected = NO;
+            self.progressSlider.value = 0.0;
+            
+            break;
+            
+        default:
+            break;
+    }
 }
 - (void)loadStateDidChangeForVideoPlayer:(OTVideoPlayerView *)videoPlayer {
     switch (videoPlayer.loadState) {

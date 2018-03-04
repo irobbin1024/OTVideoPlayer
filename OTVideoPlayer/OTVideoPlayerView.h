@@ -23,8 +23,8 @@ typedef NS_ENUM(NSInteger, OTVideoPlaybackState) {
 typedef NS_ENUM(NSInteger, OTVideoLoadState) {
     OTVideoLoadStateUnknown        = 0,
     OTVideoLoadStatePlayable       = 1 << 0,
-    OTVideoLoadStatePlaythroughOK  = 1 << 1, // Playback will be automatically started in this state when shouldAutoplay is YES
-    OTVideoLoadStateStalled        = 1 << 2, // Playback will be automatically paused in this state, if started
+    OTVideoLoadStatePlaythroughOK  = 1 << 1,
+    OTVideoLoadStateStalled        = 1 << 2,
 };
 
 typedef NS_ENUM(NSInteger, OTVideoScalingMode) {
