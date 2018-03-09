@@ -24,6 +24,10 @@ inline static bool isFloatZero(float value)
 @property (nonatomic, readwrite)  NSTimeInterval duration;
 @property (nonatomic, readwrite)  NSTimeInterval playableDuration;
 
+// 如果外部调用了暂停方法，那么值为 YES，否则为NO。
+// 目的就是为了准确返回isPlaying的状态
+@property (nonatomic, assign) BOOL pauseByCall;
+
 @property (nonatomic, assign) BOOL isPlayComplete;
 @property (nonatomic, assign) BOOL isSeeking;
 @property (nonatomic, assign) BOOL isPrerolling;
@@ -107,11 +111,13 @@ inline static bool isFloatZero(float value)
     }
     
     [self.player play];
+    self.pauseByCall = NO;
 }
 
 - (void)pause {
     [_player pause];
     self.isPrerolling = NO;
+    self.pauseByCall = YES;
 }
 
 - (void)stop {
@@ -140,6 +146,8 @@ inline static bool isFloatZero(float value)
     self.isPrerolling = NO;
     self.seekingTime = 0.f;
     self.callbackInterval = kCMTimeZero;
+    self.shouldAutoplay = NO;
+    self.pauseByCall = NO;
     
     [self removePlayCallback];
     [self removeFirstFrameCallback];
@@ -150,6 +158,11 @@ inline static bool isFloatZero(float value)
     if (!isFloatZero(_player.rate)) {
         return YES;
     } else {
+        
+        if (_pauseByCall) {
+            return NO;
+        }
+        
         if (_isPrerolling) {
             return YES;
         } else {
