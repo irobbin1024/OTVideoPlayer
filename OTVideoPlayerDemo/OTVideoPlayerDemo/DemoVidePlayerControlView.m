@@ -335,7 +335,7 @@
 }
 
 - (void)firstVideoFrameDidShowForVideoPlayer:(OTVideoPlayerView *)videoPlayer {
-    
+    NSLog(@"show time %@", [NSDate date]);
 }
 
 

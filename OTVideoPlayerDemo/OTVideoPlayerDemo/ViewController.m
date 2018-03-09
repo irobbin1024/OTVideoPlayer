@@ -24,9 +24,12 @@
     self.playerView.center = CGPointMake(self.view.frame.size.width * 0.5, self.view.frame.size.height * 0.5);
     [self.view addSubview:self.playerView];
     
-    [self.playerView setupWithURL:[NSURL URLWithString:@"http://aliuwmp3.changba.com/userdata/video/45F6BD5E445E4C029C33DC5901307461.mp4"]];
+    [self.playerView setupWithURL:[NSURL URLWithString:@"http://devimages.apple.com.edgekey.net/streaming/examples/bipbop_16x9/gear5/prog_index.m3u8"]];
+//    [self.playerView setupWithURL:[NSURL URLWithString:@"http://ali-v4d.xiaoying.tv/20180309/z5d3X8/3z80Xvn819.mp4"]];
 
-    [self.playerView play];
+    self.playerView.videoPlayerView.shouldAutoplay = YES;
+    
+    NSLog(@"show time %@", [NSDate date]);
 }
 
 

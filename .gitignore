@@ -5,6 +5,8 @@
 ## Build generated
 build/
 DerivedData/
+OTVideoPlayerDemo/Build
+OTVideoPlayerDemo/Index
 
 ## Various settings
 *.pbxuser

@@ -12,7 +12,7 @@
 
 @interface DemoVideoPlayerView()
 
-@property (nonatomic, strong) OTVideoPlayerView * videoPlayerView;
+
 
 @end
 

@@ -8,7 +8,11 @@
 
 #import "OTVideoPlayerView.h"
 
+@class OTVideoPlayerView;
+
 @interface DemoVideoPlayerView : UIView
+
+@property (nonatomic, strong) OTVideoPlayerView * videoPlayerView;
 
 - (void)setupWithURL:(NSURL *)url;
 - (void)play;
