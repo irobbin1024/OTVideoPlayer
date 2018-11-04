@@ -7,6 +7,10 @@
 //
 
 #import "OTVideoPlayerView.h"
+#import "XYAudioKit.h"
+
+#define SYSTEM_VERSION_LESS_THAN(v)                 ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedAscending)
+
 @import AVFoundation;
 
 inline static bool isFloatZero(float value)
@@ -14,26 +18,32 @@ inline static bool isFloatZero(float value)
     return fabsf(value) <= 0.00001f;
 }
 
-@interface OTVideoPlayerView()
+@interface OTVideoPlayerView() {
+    BOOL _isPlayByCall;
+}
 
-@property (nonatomic, strong) NSURL * videoURL;
 @property (nonatomic, strong) AVURLAsset * playAsset;
 @property (nonatomic, strong) AVPlayerItem * playerItem;
 @property (nonatomic, strong) AVPlayer * player;
+@property (nonatomic, assign) OTVideoLoadState loadState;
 
 @property (nonatomic, readwrite)  NSTimeInterval duration;
-@property (nonatomic, readwrite)  NSTimeInterval playableDuration;
+@property (nonatomic, readwrite)  NSTimeInterval loadedDuration;
+// 加载的数据还有多少秒可以播放
+@property (nonatomic, readwrite)  NSTimeInterval loadedCanPlayDuration;
 
 // 如果外部调用了暂停方法，那么值为 YES，否则为NO。
 // 目的就是为了准确返回isPlaying的状态
 @property (nonatomic, assign) BOOL pauseByCall;
-
+@property (nonatomic, assign) BOOL isCallFirstFrame;
 @property (nonatomic, assign) BOOL isPlayComplete;
 @property (nonatomic, assign) BOOL isSeeking;
 @property (nonatomic, assign) BOOL isPrerolling;
+@property (nonatomic, assign) BOOL playingBeforeInterruption;
 @property (nonatomic, assign) NSTimeInterval seekingTime;
 @property (nonatomic, strong) id playbackTimeObserver;
 @property (nonatomic, strong) id timerObserver;
+@property (nonatomic, assign) CMTime timeWhenEnterBackground;
 
 
 @end
@@ -47,29 +57,40 @@ inline static bool isFloatZero(float value)
 - (void)dealloc {
     [_player removeObserver:self forKeyPath:@"rate"];
     [self removeKVOForPlayerItem:_playerItem];
+    [self removeNotification];
+    [self removeFirstFrameKVO];
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        self.playbackVolume = 1.0;
         self.backgroundColor = [UIColor blackColor];
+        self.timeWhenEnterBackground = kCMTimeInvalid;
+        self.pauseByCall = YES;
+        [self addNotification];
+        
+        [self addFirstFrameKVO];
     }
     return self;
 }
 
-
-- (void)setupWithURL:(NSURL *)videoURL {
+- (void)setupWithURL:(NSURL *)videoURL shouldAutoPlay:(BOOL)shouldAutoPlay {
     if (videoURL == nil || videoURL.absoluteString.length <= 0) {
         return ;
     }
     
+    // 配置播放模式并抢夺播放资源
+    [[XYAudioKit sharedInstance] setupAudioSession];
+    
     self.isPlayComplete = NO;
     self.isPrerolling = NO;
     self.isSeeking = NO;
+    self.shouldAutoplay = shouldAutoPlay;
+    self.isCallFirstFrame = NO;
     
     self.videoURL = videoURL;
     [self removePlayCallback];
-    [self removeFirstFrameCallback];
     
     self.playAsset = [AVURLAsset URLAssetWithURL:self.videoURL options:nil];
     
@@ -83,9 +104,17 @@ inline static bool isFloatZero(float value)
     [self addKVOForPlayerItem:self.playerItem];
     // add notification player item
     [self addNotificationForPlayerItem:self.playerItem];
-
+    if (SYSTEM_VERSION_LESS_THAN(@"10.0")) {
+        [self.player removeObserver:self forKeyPath:@"rate"];
+        self.player = nil;
+    }
+    
     if (self.player == nil) {
         self.player = [AVPlayer playerWithPlayerItem:self.playerItem];
+        if (@available(iOS 10, *)) {
+            self.player.automaticallyWaitsToMinimizeStalling = NO;
+        }
+        
         
         [self.player addObserver:self
                       forKeyPath:@"rate"
@@ -95,14 +124,26 @@ inline static bool isFloatZero(float value)
     if (self.player.currentItem != self.playerItem) {
         [self.player replaceCurrentItemWithPlayerItem:self.playerItem];
     }
+    
+    self.player.volume = self.playbackVolume;
+    self.player.muted = self.muted;
+    
     AVPlayerLayer * playerLayer = (AVPlayerLayer *)self.layer;
     playerLayer.videoGravity = [self playerLayerGravityWithScalingMode:self.scalingMode];
     playerLayer.player = self.player;
+    
+    [self afterWhenPlayItemDidReplace];
     
     if (self.controlView && [self.controlView respondsToSelector:@selector(videoPlayerDidSetupWithURL:)]) {
         [self.controlView videoPlayerDidSetupWithURL:self.videoURL];
     }
 }
+
+- (void)setupWithURL:(NSURL *)videoURL {
+    [self setupWithURL:videoURL shouldAutoPlay:YES];
+}
+
+#pragma mark - Public Funs
 
 - (void)play {
     if (self.isPlayComplete){
@@ -111,6 +152,7 @@ inline static bool isFloatZero(float value)
     }
     
     [self.player play];
+    _isPlayByCall = YES;
     self.pauseByCall = NO;
 }
 
@@ -136,22 +178,31 @@ inline static bool isFloatZero(float value)
 
     if (self.playerItem != nil) {
         [self.playerItem cancelPendingSeeks];
+        self.playerItem = nil;
     }
     
     [self.player replaceCurrentItemWithPlayerItem:nil];
+    self.isCallFirstFrame = NO;
     self.duration = 0;
-    self.playableDuration = 0;
+    self.loadedDuration = 0;
     self.isPlayComplete = NO;
     self.isSeeking = NO;
     self.isPrerolling = NO;
     self.seekingTime = 0.f;
     self.callbackInterval = kCMTimeZero;
     self.shouldAutoplay = NO;
-    self.pauseByCall = NO;
-    
+    self.pauseByCall = YES;
+    self.loadState = OTVideoLoadStateUnknown;
+    self.loadedCanPlayDuration = 0.;
+    self.muted = NO;
+    self.playbackVolume = 1.0;
+    self.videoURL = nil;
+    _isPlayByCall = NO;
     [self removePlayCallback];
-    [self removeFirstFrameCallback];
-    
+}
+
+- (BOOL)isPlayByCall {
+    return _isPlayByCall;
 }
 
 - (BOOL)isPlaying {
@@ -190,6 +241,156 @@ inline static bool isFloatZero(float value)
     return image;
 }
 
+#pragma mark - Private Funs
+
+- (void)afterWhenPlayItemDidReplace {
+    if (self.shouldAutoplay && ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)) {
+        [self.player play];
+    }
+}
+
+- (void)callPlayError:(NSError *)error {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(videoPlayer:errorOccur:)]) {
+        [self.delegate videoPlayer:self errorOccur:error];
+    }
+    [self callPlaybackStateChange];
+    [self callLoadStateChange];
+}
+
+- (void)callLoadStateChange {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(loadStateDidChangeForVideoPlayer:)]) {
+        [self.delegate loadStateDidChangeForVideoPlayer:self];
+    }
+}
+
+- (void)callPlaybackStateChange {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(playbackStateDidChangeForVideoPlayer:)]) {
+        [self.delegate playbackStateDidChangeForVideoPlayer:self];
+    }
+}
+
+- (void)setupPlayCallback {
+
+    if (CMTIME_IS_INVALID(self.callbackInterval)) {
+        return ;
+    }
+    
+    if (CMTimeCompare(self.callbackInterval, kCMTimeZero) <= 0) {
+        return ;
+    }
+    
+    [self removePlayCallback];
+    
+    __weak OTVideoPlayerView * weakSelf = self;
+    self.playbackTimeObserver =  [self.player addPeriodicTimeObserverForInterval:self.callbackInterval queue:dispatch_get_main_queue() usingBlock:^(CMTime time){
+        if (weakSelf.delegate && [weakSelf.delegate respondsToSelector:@selector(playCallbackForVideoPlayer:)]) {
+            [weakSelf.delegate playCallbackForVideoPlayer:weakSelf];
+        }
+    }];
+}
+- (void)setFrame:(CGRect)frame {
+    [super setFrame:frame];
+}
+
+- (void)removePlayCallback {
+    if (self.playbackTimeObserver) {
+        [self.player removeTimeObserver:self.playbackTimeObserver];
+        self.playbackTimeObserver = nil;
+    }
+}
+
+- (AVLayerVideoGravity)playerLayerGravityWithScalingMode:(OTVideoScalingMode)scalingMode {
+    switch (scalingMode) {
+        case OTVideoScalingModeFill:
+            return AVLayerVideoGravityResize;
+            break;
+        case OTVideoScalingModeNone:
+            return AVLayerVideoGravityResizeAspect;
+            break;
+        case OTVideoScalingModeAspectFit:
+            return AVLayerVideoGravityResizeAspect;
+            break;
+        case OTVideoScalingModeAspectFill:
+            return AVLayerVideoGravityResizeAspectFill;
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)didPlayableDurationUpdate {
+    NSTimeInterval currentPlaybackTime = self.currentPlaybackTime;
+    int playableDurationMilli    = (int)(self.loadedDuration * 1000);
+    int currentPlaybackTimeMilli = (int)(currentPlaybackTime * 1000);
+    
+    int bufferedDurationMilli = playableDurationMilli - currentPlaybackTimeMilli;
+    if (bufferedDurationMilli > 3000 && self.isPlaying) {
+        self.player.rate = 1.0;
+    }
+    
+    CMTime time = _playerItem.duration;
+    Float64 seconds = CMTimeGetSeconds(time);
+    BOOL isBufferFull = (seconds > 0 && playableDurationMilli >= (int)(seconds *1000));
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(didPlayableDurationUpdate:playableDuration:)]) {
+        [self.delegate didPlayableDurationUpdate:self playableDuration:self.loadedDuration];
+    }
+    
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"XYNotificationBufferedDurationMilliUpdate"
+                                                        object:self
+                                                      userInfo:@{@"bufferedDurationMilli" : @(bufferedDurationMilli), @"videoURL" : self.videoURL, @"isBufferFull":@(isBufferFull)}];
+}
+
+- (void)addFirstFrameKVO {
+    AVPlayerLayer * playerLayer = (AVPlayerLayer *)self.layer;
+    [playerLayer addObserver:self forKeyPath:@"readyForDisplay" options:NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew context:NULL];
+}
+
+- (void)removeFirstFrameKVO {
+    AVPlayerLayer * playerLayer = (AVPlayerLayer *)self.layer;
+    [playerLayer removeObserver:self forKeyPath:@"readyForDisplay"];
+}
+
+#pragma mark - KVO
+
+- (void)addKVOForPlayerItem:(AVPlayerItem *)playerItem {
+    [self.playerItem addObserver:self
+                      forKeyPath:@"status"
+                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+                         context:NULL];
+    
+    [self.playerItem addObserver:self
+                      forKeyPath:@"loadedTimeRanges"
+                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+                         context:NULL];
+    
+    [self.playerItem addObserver:self
+                      forKeyPath:@"playbackLikelyToKeepUp"
+                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+                         context:NULL];
+    
+    [self.playerItem addObserver:self
+                      forKeyPath:@"playbackBufferEmpty"
+                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+                         context:NULL];
+    
+    [self.playerItem addObserver:self
+                      forKeyPath:@"playbackBufferFull"
+                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+                         context:NULL];
+    
+}
+
+- (void)removeKVOForPlayerItem:(AVPlayerItem *)playerItem {
+    if (playerItem) {
+        [playerItem removeObserver:self forKeyPath:@"status"];
+        [playerItem removeObserver:self forKeyPath:@"loadedTimeRanges"];
+        [playerItem removeObserver:self forKeyPath:@"playbackLikelyToKeepUp"];
+        [playerItem removeObserver:self forKeyPath:@"playbackBufferEmpty"];
+        [playerItem removeObserver:self forKeyPath:@"playbackBufferFull"];
+    }
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
     
     if ([keyPath isEqualToString:@"status"]) {
@@ -208,18 +409,13 @@ inline static bool isFloatZero(float value)
                 } else {
                     self.duration = duration;
                 }
-                
-                if (self.shouldAutoplay) {
-                    [self.player play];
-                }
-                
-                [self setupPlayCallback];
-                [self setupFirstFrameCallback];
-                
+
                 if (self.delegate && [self.delegate respondsToSelector:@selector(readyToPlayForVideoPlayer:)]) {
                     [self.delegate readyToPlayForVideoPlayer:self];
                 }
-
+                
+                [self setupPlayCallback];
+                
                 break;
             }
             case AVPlayerItemStatusFailed: {
@@ -253,151 +449,73 @@ inline static bool isFloatZero(float value)
                 CMTime maxTime = CMTimeRangeGetEnd(aTimeRange);
                 NSTimeInterval playableDuration = CMTimeGetSeconds(maxTime);
                 if (playableDuration > 0) {
-                    self.playableDuration = playableDuration;
+                    self.loadedDuration = playableDuration;
+                    [self didPlayableDurationUpdate];
+                    
+                    
+                    // 计算加载进度
+                    if (playableDuration / CMTimeGetSeconds(self.playerItem.duration) >= 0.99) {
+                        // 全部加在完成
+                        self.loadState = OTVideoLoadStatePlayable | OTVideoLoadStatePlaythroughOK;
+                    }
+                    // 计算可以播放的时长
+                    self.loadedCanPlayDuration = playableDuration - CMTimeGetSeconds(self.player.currentTime);
+                    // 时间长过2s，开始播放
+                    if (self.loadedCanPlayDuration > 2.0 && self.isPlaying) {
+                        self.loadState = self.loadState | OTVideoLoadStatePlayable;
+                        [self play];
+                    }
                 }
             }
         } else {
-            self.playableDuration = 0;
+            self.loadedDuration = 0;
         }
+        
         
         [self callLoadStateChange];
     } else if ([keyPath isEqualToString:@"playbackBufferEmpty"]) {
         if (self.playerItem.isPlaybackBufferEmpty) {
             self.isPrerolling = YES;
+            self.loadState = OTVideoLoadStateStalled;
         }
         
         [self callLoadStateChange];
     } else if ([keyPath isEqualToString:@"playbackLikelyToKeepUp"]) {
+        if (self.playerItem.playbackLikelyToKeepUp) {
+            self.loadState = OTVideoLoadStatePlayable;
+        }
+        
         [self callLoadStateChange];
     } else if ([keyPath isEqualToString:@"playbackBufferFull"]) {
+        if (self.playerItem.playbackBufferFull) {
+            self.loadState = OTVideoLoadStatePlayable;
+        }
+        
         [self callLoadStateChange];
     } else if ([keyPath isEqualToString:@"rate"]) {
         if (self.player != nil && !isFloatZero(self.player.rate))
             self.isPrerolling = NO;
         
         [self callPlaybackStateChange];
+    } else if ([keyPath isEqualToString:@"readyForDisplay"]) {
+        if (change[@"new"]) {
+            BOOL readyForDisplay = [change[@"new"] boolValue];
+            if (readyForDisplay) {
+                if (!self.isCallFirstFrame) {
+                    if (self.delegate && [self.delegate respondsToSelector:@selector(firstVideoFrameDidShowForVideoPlayer:)]) {
+                        [self.delegate firstVideoFrameDidShowForVideoPlayer:self];
+                        self.isCallFirstFrame = YES;
+                    }
+                }
+            }
+        }
+        
     } else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
     }
 }
 
-- (void)callPlayError:(NSError *)error {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(videoPlayer:errorOccur:)]) {
-        [self.delegate videoPlayer:self errorOccur:error];
-    }
-    [self callPlaybackStateChange];
-    [self callLoadStateChange];
-}
-
-- (void)callLoadStateChange {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(loadStateDidChangeForVideoPlayer:)]) {
-        [self.delegate loadStateDidChangeForVideoPlayer:self];
-    }
-}
-
-- (void)callPlaybackStateChange {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(playbackStateDidChangeForVideoPlayer:)]) {
-        [self.delegate playbackStateDidChangeForVideoPlayer:self];
-    }
-}
-
-#pragma mark - Private Funs
-
-- (void)setupFirstFrameCallback {
-
-    __weak OTVideoPlayerView * weakSelf = self;
-    [weakSelf removeFirstFrameCallback];
-    
-    self.timerObserver = [self.player addBoundaryTimeObserverForTimes:@[[NSValue valueWithCMTime:CMTimeMake(1, 30)]] queue:dispatch_get_main_queue() usingBlock:^{
-        if (weakSelf.delegate && [weakSelf.delegate respondsToSelector:@selector(firstVideoFrameDidShowForVideoPlayer:)]) {
-            [weakSelf.delegate firstVideoFrameDidShowForVideoPlayer:weakSelf];
-        }
-        
-        [weakSelf removeFirstFrameCallback];
-    }];
-}
-
-- (void)removeFirstFrameCallback {
-    if (self.player == nil) {
-        return ;
-    }
-    
-    [self.player removeTimeObserver:self.timerObserver];
-    self.timerObserver = nil;
-}
-
-- (void)setupPlayCallback {
-
-    if (CMTIME_IS_INVALID(self.callbackInterval)) {
-        return ;
-    }
-    
-    if (CMTimeCompare(self.callbackInterval, kCMTimeZero) <= 0) {
-        return ;
-    }
-    
-    [self removePlayCallback];
-    
-    __weak OTVideoPlayerView * weakSelf = self;
-    self.playbackTimeObserver =  [self.player addPeriodicTimeObserverForInterval:self.callbackInterval queue:dispatch_get_main_queue() usingBlock:^(CMTime time){
-        if (weakSelf.delegate && [weakSelf.delegate respondsToSelector:@selector(playCallbackForVideoPlayer:)]) {
-            [weakSelf.delegate playCallbackForVideoPlayer:weakSelf];
-        }
-    }];
-}
-
-- (void)removePlayCallback {
-    if (self.playbackTimeObserver) {
-        [self.player removeTimeObserver:self.playbackTimeObserver];
-        self.playbackTimeObserver = nil;
-    }
-}
-
-- (AVLayerVideoGravity)playerLayerGravityWithScalingMode:(OTVideoScalingMode)scalingMode {
-    switch (scalingMode) {
-        case OTVideoScalingModeFill:
-            return AVLayerVideoGravityResize;
-            break;
-        case OTVideoScalingModeNone:
-            return AVLayerVideoGravityResizeAspect;
-            break;
-        case OTVideoScalingModeAspectFit:
-            return AVLayerVideoGravityResizeAspect;
-            break;
-        case OTVideoScalingModeAspectFill:
-            return AVLayerVideoGravityResizeAspectFill;
-            break;
-        default:
-            break;
-    }
-}
-
-- (void)addKVOForPlayerItem:(AVPlayerItem *)playerItem {
-    [self.playerItem addObserver:self
-                      forKeyPath:@"status"
-                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
-                         context:NULL];
-    
-    [self.playerItem addObserver:self
-                      forKeyPath:@"loadedTimeRanges"
-                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
-                         context:NULL];
-    
-    [self.playerItem addObserver:self
-                      forKeyPath:@"playbackLikelyToKeepUp"
-                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
-                         context:NULL];
-    
-    [self.playerItem addObserver:self
-                      forKeyPath:@"playbackBufferEmpty"
-                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
-                         context:NULL];
-    
-    [self.playerItem addObserver:self
-                      forKeyPath:@"playbackBufferFull"
-                         options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
-                         context:NULL];
-}
+#pragma mark - Notification
 
 - (void)addNotificationForPlayerItem:(AVPlayerItem *)playerItem {
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -410,17 +528,104 @@ inline static bool isFloatZero(float value)
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:playerItem];
 }
 
-- (void)removeKVOForPlayerItem:(AVPlayerItem *)playerItem {
-    if (playerItem) {
-        [playerItem removeObserver:self forKeyPath:@"status"];
-        [playerItem removeObserver:self forKeyPath:@"loadedTimeRanges"];
-        [playerItem removeObserver:self forKeyPath:@"playbackLikelyToKeepUp"];
-        [playerItem removeObserver:self forKeyPath:@"playbackBufferEmpty"];
-        [playerItem removeObserver:self forKeyPath:@"playbackBufferFull"];
+- (void)addNotification {
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appDidEnterBackground:)
+                                                 name:UIApplicationDidEnterBackgroundNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appWillEnterForeground:)
+                                                 name:UIApplicationWillEnterForegroundNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appDidEnterBackground:)
+                                                 name:UIApplicationWillResignActiveNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appWillEnterForeground:)
+                                                 name:UIApplicationDidBecomeActiveNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(audioSessionInterrupt:)
+                                                 name:AVAudioSessionInterruptionNotification
+                                               object:nil];
+
+}
+
+- (void)removeNotification {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+/**
+ 音频资源被打断，比如来电话
+ 
+ @param notification notification
+ */
+- (void)audioSessionInterrupt:(NSNotification *)notification
+{
+    int reason = [[[notification userInfo] valueForKey:AVAudioSessionInterruptionTypeKey] intValue];
+    switch (reason) {
+        case AVAudioSessionInterruptionTypeBegan: {
+            switch (self.playbackState) {
+                case OTVideoPlaybackStateStopped:
+                case OTVideoPlaybackStatePaused:
+                    self.playingBeforeInterruption = NO;
+                    break;
+                default:
+                    self.playingBeforeInterruption = YES;
+                    break;
+            }
+            [self pause];
+            [[XYAudioKit sharedInstance] setActive:NO];
+            break;
+        }
+        case AVAudioSessionInterruptionTypeEnded: {
+            NSDictionary *info = notification.userInfo;
+            AVAudioSessionInterruptionOptions options =[info[AVAudioSessionInterruptionOptionKey] integerValue];
+            [[XYAudioKit sharedInstance] setActive:YES];
+            if (self.playingBeforeInterruption && options == AVAudioSessionInterruptionOptionShouldResume) {
+                [self play];
+            }
+            break;
+        }
     }
 }
 
-#pragma mark - Notification
+- (void)appDidEnterBackground:(NSNotification *)notification {
+    if (self.player) {
+        if (self.isPlaying) {
+            [self pause];
+            self.timeWhenEnterBackground = self.player.currentTime;
+        } else {
+            self.timeWhenEnterBackground = kCMTimeInvalid;
+        }
+    } else {
+        self.timeWhenEnterBackground = kCMTimeInvalid;
+    }
+}
+
+- (void)appWillEnterForeground:(NSNotification *)notification {
+    if (CMTimeCompare(kCMTimeInvalid, self.timeWhenEnterBackground) == 0) {
+        return ;
+    }
+    
+    if (!self.player) {
+        return;
+    }
+    
+    @try {
+        [self.player seekToTime:self.timeWhenEnterBackground
+                toleranceBefore:kCMTimeZero
+                 toleranceAfter:kCMTimeZero
+              completionHandler:^(BOOL finished) {
+                  
+            if (finished) {
+                [self play];
+            }
+        }];
+    } @catch (NSException *exception) {
+        [self play];
+    }
+}
 
 - (void)playerItemDidReachEnd:(NSNotification *)notification {
     if (notification.object == self.playerItem) {
@@ -433,9 +638,18 @@ inline static bool isFloatZero(float value)
     
     [self callPlaybackStateChange];
     [self callLoadStateChange];
+    
 }
 
 #pragma mark - Getter & Setter
+
+- (void)setMuted:(BOOL)muted {
+    _muted = muted;
+    if (_player) {
+        _player.muted = muted;
+    }
+}
+
 - (void)setScalingMode:(OTVideoScalingMode)scalingMode {
     _scalingMode = scalingMode;
     AVPlayerLayer * playerLayer = (AVPlayerLayer *)self.layer;
@@ -470,18 +684,13 @@ inline static bool isFloatZero(float value)
     if (playerItem == nil) {
         return OTVideoLoadStateUnknown;
     }
-    
-    if (_player != nil && !isFloatZero(_player.rate)) {
-        return OTVideoLoadStatePlayable | OTVideoLoadStatePlaythroughOK;
-    } else if ([playerItem isPlaybackBufferFull]) {
-        return OTVideoLoadStatePlayable | OTVideoLoadStatePlaythroughOK;
-    } else if ([playerItem isPlaybackLikelyToKeepUp]) {
-        return OTVideoLoadStatePlayable | OTVideoLoadStatePlaythroughOK;
-    } else if ([playerItem isPlaybackBufferEmpty]) {
-        return OTVideoLoadStateStalled;
-    } else {
-        return OTVideoLoadStateUnknown;
+
+    if ([self.playerItem isPlaybackBufferFull] ||
+        [self.playerItem isPlaybackLikelyToKeepUp]) {
+        return _loadState | OTVideoLoadStatePlayable;
     }
+    
+    return _loadState;
 }
 
 - (NSTimeInterval)currentPlaybackTime {
@@ -525,7 +734,7 @@ inline static bool isFloatZero(float value)
     return [videoTracks objectAtIndex:0].naturalSize;
 }
 
-- (void)setControlView:(UIView *)controlView {
+- (void)setControlView:(UIView<OTVideoPlayerBeControlView> *)controlView {
     [_controlView removeFromSuperview];
     _controlView = controlView;
     
@@ -533,10 +742,14 @@ inline static bool isFloatZero(float value)
     _controlView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     
     [self addSubview:_controlView];
-    
-//    if (_delegate && [_delegate respondsToSelector:@selector(didAddToPlayerView:)]) {
-//        [_delegate didAddToPlayerView:self];
-//    }
+}
+
+- (void)setPlaybackVolume:(float)playbackVolume {
+    _playbackVolume = playbackVolume;
+    if ( _player ) {
+        _player.volume = playbackVolume;
+        [self setMuted:playbackVolume < 0.01];
+    }
 }
 
 @end
