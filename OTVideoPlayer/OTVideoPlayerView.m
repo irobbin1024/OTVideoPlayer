@@ -7,7 +7,6 @@
 //
 
 #import "OTVideoPlayerView.h"
-#import "XYAudioKit.h"
 
 #define SYSTEM_VERSION_LESS_THAN(v)                 ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedAscending)
 
@@ -81,7 +80,7 @@ inline static bool isFloatZero(float value)
     }
     
     // 配置播放模式并抢夺播放资源
-    [[XYAudioKit sharedInstance] setupAudioSession];
+//    [[XYAudioKit sharedInstance] setupAudioSession];
     
     self.isPlayComplete = NO;
     self.isPrerolling = NO;
@@ -196,7 +195,6 @@ inline static bool isFloatZero(float value)
     self.loadedCanPlayDuration = 0.;
     self.muted = NO;
     self.playbackVolume = 1.0;
-    self.videoURL = nil;
     _isPlayByCall = NO;
     [self removePlayCallback];
 }
@@ -575,13 +573,13 @@ inline static bool isFloatZero(float value)
                     break;
             }
             [self pause];
-            [[XYAudioKit sharedInstance] setActive:NO];
+//            [[OTAudioKit sharedInstance] setActive:NO];
             break;
         }
         case AVAudioSessionInterruptionTypeEnded: {
             NSDictionary *info = notification.userInfo;
             AVAudioSessionInterruptionOptions options =[info[AVAudioSessionInterruptionOptionKey] integerValue];
-            [[XYAudioKit sharedInstance] setActive:YES];
+//            [[OTAudioKit sharedInstance] setActive:YES];
             if (self.playingBeforeInterruption && options == AVAudioSessionInterruptionOptionShouldResume) {
                 [self play];
             }

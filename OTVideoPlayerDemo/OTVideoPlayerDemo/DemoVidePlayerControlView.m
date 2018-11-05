@@ -306,7 +306,7 @@
             break;
     }
     
-    [self.loadingProgress setProgress:videoPlayer.playableDuration / videoPlayer.duration];
+    [self.loadingProgress setProgress:videoPlayer.duration / videoPlayer.duration];
     
     NSLog(@"loadingProgress %lf", self.loadingProgress.progress);
     
