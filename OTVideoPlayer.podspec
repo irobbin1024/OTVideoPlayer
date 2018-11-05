@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
     s.name         = 'OTVideoPlayer'
-    s.version      = '1.0.0'
+    s.version      = '1.0.1'
     s.summary      = 'a simple and powerful video player base AVPlayer'
     s.homepage     = 'https://github.com/irobbin1024/OTVideoPlayer.git'
     s.license      = 'MIT'
