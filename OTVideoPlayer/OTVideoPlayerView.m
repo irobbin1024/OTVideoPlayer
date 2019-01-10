@@ -702,7 +702,7 @@ inline static bool isFloatZero(float value)
 }
 
 - (void)setCurrentPlaybackTime:(NSTimeInterval)aCurrentPlaybackTime {
-    if (!self.player)
+    if (!self.player || (self.loadState & OTVideoLoadStatePlayable == NO))
         return;
     
     self.seekingTime = aCurrentPlaybackTime;
