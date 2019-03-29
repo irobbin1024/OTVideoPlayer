@@ -7,6 +7,7 @@
 //
 
 #import "OTVideoPlayerView.h"
+#import "XYAudioKit.h"
 
 #define SYSTEM_VERSION_LESS_THAN(v)                 ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedAscending)
 
@@ -25,6 +26,7 @@ inline static bool isFloatZero(float value)
 @property (nonatomic, strong) AVPlayerItem * playerItem;
 @property (nonatomic, strong) AVPlayer * player;
 @property (nonatomic, assign) OTVideoLoadState loadState;
+@property (nonatomic, assign) BOOL isLockReset;
 
 @property (nonatomic, readwrite)  NSTimeInterval duration;
 @property (nonatomic, readwrite)  NSTimeInterval loadedDuration;
@@ -80,7 +82,7 @@ inline static bool isFloatZero(float value)
     }
     
     // 配置播放模式并抢夺播放资源
-//    [[XYAudioKit sharedInstance] setupAudioSession];
+    [[XYAudioKit sharedInstance] setupAudioSession];
     
     self.isPlayComplete = NO;
     self.isPrerolling = NO;
@@ -167,7 +169,7 @@ inline static bool isFloatZero(float value)
 }
 
 - (void)reset {
-    if (self.player == nil) {
+    if (self.player == nil || self.isLock) {
         return ;
     }
     
@@ -195,6 +197,7 @@ inline static bool isFloatZero(float value)
     self.loadedCanPlayDuration = 0.;
     self.muted = NO;
     self.playbackVolume = 1.0;
+    self.videoURL = nil;
     _isPlayByCall = NO;
     [self removePlayCallback];
 }
@@ -237,6 +240,18 @@ inline static bool isFloatZero(float value)
     
     UIImage *image = [UIImage imageWithCGImage:cgImage];
     return image;
+}
+
+- (void)lockReset {
+    @synchronized (self) {
+        self.isLockReset = YES;
+    }
+}
+
+- (void)unlockReset {
+    @synchronized (self) {
+        self.isLockReset = NO;
+    }
 }
 
 #pragma mark - Private Funs
@@ -285,9 +300,6 @@ inline static bool isFloatZero(float value)
             [weakSelf.delegate playCallbackForVideoPlayer:weakSelf];
         }
     }];
-}
-- (void)setFrame:(CGRect)frame {
-    [super setFrame:frame];
 }
 
 - (void)removePlayCallback {
@@ -389,6 +401,14 @@ inline static bool isFloatZero(float value)
     }
 }
 
+- (void)setFrame:(CGRect)frame {
+    [super setFrame:frame];
+
+    if (frame.size.width <= 1) {
+        NSLog(@"11111");
+    }
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
     
     if ([keyPath isEqualToString:@"status"]) {
@@ -453,43 +473,46 @@ inline static bool isFloatZero(float value)
                     
                     // 计算加载进度
                     if (playableDuration / CMTimeGetSeconds(self.playerItem.duration) >= 0.99) {
-                        // 全部加在完成
+                        // 全部加载完成
                         self.loadState = OTVideoLoadStatePlayable | OTVideoLoadStatePlaythroughOK;
+                        [self callLoadStateChange];
                     }
                     // 计算可以播放的时长
                     self.loadedCanPlayDuration = playableDuration - CMTimeGetSeconds(self.player.currentTime);
                     // 时间长过2s，开始播放
                     if (self.loadedCanPlayDuration > 2.0 && self.isPlaying) {
                         self.loadState = self.loadState | OTVideoLoadStatePlayable;
+                        if (self.loadState & OTVideoLoadStateStalled) {
+                            self.loadState ^= OTVideoLoadStateStalled;
+                        }
                         [self play];
+                        [self callLoadStateChange];
                     }
                 }
             }
         } else {
             self.loadedDuration = 0;
         }
-        
-        
-        [self callLoadStateChange];
+
     } else if ([keyPath isEqualToString:@"playbackBufferEmpty"]) {
         if (self.playerItem.isPlaybackBufferEmpty) {
             self.isPrerolling = YES;
             self.loadState = OTVideoLoadStateStalled;
         }
-        
         [self callLoadStateChange];
+        
     } else if ([keyPath isEqualToString:@"playbackLikelyToKeepUp"]) {
         if (self.playerItem.playbackLikelyToKeepUp) {
             self.loadState = OTVideoLoadStatePlayable;
         }
-        
         [self callLoadStateChange];
+        
     } else if ([keyPath isEqualToString:@"playbackBufferFull"]) {
         if (self.playerItem.playbackBufferFull) {
             self.loadState = OTVideoLoadStatePlayable;
         }
-        
         [self callLoadStateChange];
+        
     } else if ([keyPath isEqualToString:@"rate"]) {
         if (self.player != nil && !isFloatZero(self.player.rate))
             self.isPrerolling = NO;
@@ -501,6 +524,7 @@ inline static bool isFloatZero(float value)
             if (readyForDisplay) {
                 if (!self.isCallFirstFrame) {
                     if (self.delegate && [self.delegate respondsToSelector:@selector(firstVideoFrameDidShowForVideoPlayer:)]) {
+                        NSLog(@"OTPlayer first frame show");
                         [self.delegate firstVideoFrameDidShowForVideoPlayer:self];
                         self.isCallFirstFrame = YES;
                     }
@@ -573,13 +597,13 @@ inline static bool isFloatZero(float value)
                     break;
             }
             [self pause];
-//            [[OTAudioKit sharedInstance] setActive:NO];
+            [[XYAudioKit sharedInstance] setActive:NO];
             break;
         }
         case AVAudioSessionInterruptionTypeEnded: {
             NSDictionary *info = notification.userInfo;
             AVAudioSessionInterruptionOptions options =[info[AVAudioSessionInterruptionOptionKey] integerValue];
-//            [[OTAudioKit sharedInstance] setActive:YES];
+            [[XYAudioKit sharedInstance] setActive:YES];
             if (self.playingBeforeInterruption && options == AVAudioSessionInterruptionOptionShouldResume) {
                 [self play];
             }
@@ -635,8 +659,6 @@ inline static bool isFloatZero(float value)
     }
     
     [self callPlaybackStateChange];
-    [self callLoadStateChange];
-    
 }
 
 #pragma mark - Getter & Setter
@@ -707,8 +729,14 @@ inline static bool isFloatZero(float value)
     
     self.seekingTime = aCurrentPlaybackTime;
     self.isSeeking = YES;
-    [self callPlaybackStateChange];
-    [self callLoadStateChange];
+    // 如果在短时间内可以完成seek操作，那么表明是已缓冲的进度，不需要调用缓冲回调
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self.isSeeking) {
+            [self callPlaybackStateChange];
+            [self callLoadStateChange];
+        }
+    });
+    
     
     [self.player seekToTime:CMTimeMakeWithSeconds(aCurrentPlaybackTime, NSEC_PER_SEC)
           completionHandler:^(BOOL finished) {
@@ -747,6 +775,12 @@ inline static bool isFloatZero(float value)
     if ( _player ) {
         _player.volume = playbackVolume;
         [self setMuted:playbackVolume < 0.01];
+    }
+}
+
+- (BOOL)isLock {
+    @synchronized (self) {
+        return _isLockReset;
     }
 }
 

@@ -120,6 +120,11 @@ typedef NS_ENUM(NSInteger, OTVideoScalingMode) {
 @interface OTVideoPlayerView : UIView
 
 /**
+ reset操作是否被锁住
+ */
+@property (readonly) BOOL isLockReset;
+
+/**
  视频URL，一般通过setup方法传入
  */
 @property (nonatomic, strong) NSURL * videoURL;
@@ -233,6 +238,16 @@ typedef NS_ENUM(NSInteger, OTVideoScalingMode) {
  @return UIImage
  */
 - (UIImage *)thumbnailImageAtCurrentTime;
+
+/**
+ 锁住reset，防止播放过程中被意外reset
+ */
+- (void)lockReset;
+
+/**
+ 解锁reset
+ */
+- (void)unlockReset;
 
 @end
 
